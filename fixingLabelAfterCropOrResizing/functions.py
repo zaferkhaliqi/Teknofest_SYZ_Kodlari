@@ -1,63 +1,10 @@
 import cv2
-
-def crop_img(img_path):
-    img = cv2.imread(img_path)
-    gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-    hrch, binary_image = cv2.threshold(gray_img, 10, 255, cv2.THRESH_BINARY)
-    contours,hrch = cv2.findContours(binary_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    largest_contour = max(contours, key=cv2.contourArea)
-    x, y, w, h = cv2.boundingRect(largest_contour)
-    crop_details = {
-        'top': y,
-        'left': x,
-        'right': img.shape[1] - (x + w),
-        'bottom': img.shape[0] - (y + h)
-    }
-    #print(crop_details)
-    cropped_img = img[y:y+h, x:x+w]
-    #resized = cv2.resize(cropped_img, (512, 512))
-    return cropped_img,crop_details
-
-
-def update_bounding_boxes_for_cropped_image(cords,x1,y1,x2,y2):
-    bounding_boxes = {    
-    'new_x1' : x1 - cords['left'],
-    'new_y1' : y1 - cords['top'],
-    'new_x2' : x2 - cords['left'],
-    'new_y2' : y2 - cords['top']
-    }
-    return bounding_boxes
-
-
-def update_bounding_boxes_for_resized_image(original_image,resized_image,cropped_x1_bbox,cropped_y1_bbox,cropped_x2_bbox,cropped_y2_bbox):
-
-
-    # Original image shape
-    original_shape = original_image.shape
-
-    # Resized image shape
-    resized_shape = resized_image.shape
-
-    # Bounding box coordinates before resizing
-    bbox_before_resizing = ((cropped_x1_bbox, cropped_y1_bbox), (cropped_x2_bbox, cropped_y2_bbox))
-
-    # Calculate scaling factors for width and height
-    width_scale = resized_shape[1] / original_shape[1]
-    height_scale = resized_shape[0] / original_shape[0]
-
-    # Adjust bounding box coordinates
-    adjusted_bbox = {
-        'x1':int(bbox_before_resizing[0][0] * width_scale), 'y1':int(bbox_before_resizing[0][1] * height_scale),
-        'x2':int(bbox_before_resizing[1][0] * width_scale), 'y2':int(bbox_before_resizing[1][1] * height_scale)
-    }
-
-    return  adjusted_bbox
-
-import cv2
 import pandas as pd
 import cv2
 import pandas as pd
 import matplotlib.pyplot as plt
+
+
 class Preprocessing:
     def __init__(self, img_path,label_path):
         self.img_path = img_path
@@ -172,6 +119,58 @@ def controller (imgpath,labelpath):
 
 
 
+def crop_img(img_path):
+    img = cv2.imread(img_path)
+    gray_img = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+    hrch, binary_image = cv2.threshold(gray_img, 10, 255, cv2.THRESH_BINARY)
+    contours,hrch = cv2.findContours(binary_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    largest_contour = max(contours, key=cv2.contourArea)
+    x, y, w, h = cv2.boundingRect(largest_contour)
+    crop_details = {
+        'top': y,
+        'left': x,
+        'right': img.shape[1] - (x + w),
+        'bottom': img.shape[0] - (y + h)
+    }
+    #print(crop_details)
+    cropped_img = img[y:y+h, x:x+w]
+    #resized = cv2.resize(cropped_img, (512, 512))
+    return cropped_img,crop_details
+
+
+def update_bounding_boxes_for_cropped_image(cords,x1,y1,x2,y2):
+    bounding_boxes = {    
+    'new_x1' : x1 - cords['left'],
+    'new_y1' : y1 - cords['top'],
+    'new_x2' : x2 - cords['left'],
+    'new_y2' : y2 - cords['top']
+    }
+    return bounding_boxes
+
+
+def update_bounding_boxes_for_resized_image(original_image,resized_image,cropped_x1_bbox,cropped_y1_bbox,cropped_x2_bbox,cropped_y2_bbox):
+
+
+    # Original image shape
+    original_shape = original_image.shape
+
+    # Resized image shape
+    resized_shape = resized_image.shape
+
+    # Bounding box coordinates before resizing
+    bbox_before_resizing = ((cropped_x1_bbox, cropped_y1_bbox), (cropped_x2_bbox, cropped_y2_bbox))
+
+    # Calculate scaling factors for width and height
+    width_scale = resized_shape[1] / original_shape[1]
+    height_scale = resized_shape[0] / original_shape[0]
+
+    # Adjust bounding box coordinates
+    adjusted_bbox = {
+        'x1':int(bbox_before_resizing[0][0] * width_scale), 'y1':int(bbox_before_resizing[0][1] * height_scale),
+        'x2':int(bbox_before_resizing[1][0] * width_scale), 'y2':int(bbox_before_resizing[1][1] * height_scale)
+    }
+
+    return  adjusted_bbox
 
 
 
