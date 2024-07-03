@@ -175,3 +175,341 @@ def update_bounding_boxes_for_resized_image(original_image,resized_image,cropped
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+''''''''''''''''''''''''''''
+Updated
+'''''''''''''''''''''''''''''''''
+import cv2
+import matplotlib.pyplot as plt
+import pandas as pd
+import os
+inputstring = "-902.946,399.9102;-902.946,83.00023;-1175.955,83.00023;-1175.955,399.9102"
+# Her koordinat çifti noktalı virgül ile ayrılmıştır
+
+def conf_the_str(input_coords):
+    pairs = input_coords.split(';')
+    # Koordinat çiftlerini ayrıştırıp, listeye ekleyelim
+    coordinates = []
+    for pair in pairs:
+        x, y = map(float, pair.split(','))
+        coordinates.append([x, y])
+    return coordinates
+
+
+def label_conf_and_draw(labels,image):
+    '''Output order: x1,y1,x2,y2'''
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # Get image dimensions
+    height, width, _ = image.shape
+
+    # Given coordinates of the label corners
+    label_coords = labels 
+
+    # Calculate actual positions without loop
+                    #x              + half_width        y+ half_height
+    x1, y1 = int(label_coords[0][0] + width / 2), int(label_coords[0][1] + height / 2)
+    x2, y2 = int(label_coords[2][0] + width / 2), int(label_coords[2][1] + height / 2)
+
+    return x1,y1,x2,y2
+
+def convert_to_yolo(x1, y1, x2, y2, image):
+    'return x_center, y_center, width, height'
+    # Calculate the center of the bounding box
+    img_height, img_width, _ = image.shape
+    x_center = (x1 + x2) / 2.0
+    y_center = (y1 + y2) / 2.0
+         
+    # Calculate the width and height of the bounding box
+    width = x2 - x1
+    height = y2 - y1
+    
+    # Normalize the values by the image width and height
+    x_center /= img_width
+    y_center /= img_height
+    width /= img_width
+    height /= img_height
+    
+    return x_center, y_center, width, height
+
+
+
+def unnormalize_Yolo_cords(label,image):
+    'return: x1, y1, x2, y2'
+    img_height, img_width, rgb = image.shape
+
+    cls,x_zip, y_zip, genislik_bbox_zip, yukseklik_bbox_zip = label
+
+    img_height, img_width, rgb = image.shape #shape fonksyonu Goruntunun gensligi, yuksekligi ve kanal sayisini alir
+    x = x_zip * img_width
+    y = y_zip * img_height
+    bbox_genislik= genislik_bbox_zip * img_width
+    bbox_yukseklik = yukseklik_bbox_zip * img_height
+
+    x1 = int(x - bbox_genislik/2)
+    x2 = int(x + bbox_genislik/2)
+    y1 = int(y - bbox_yukseklik/2)
+    y2 = int(y + bbox_yukseklik/2)
+    # print(f'x1:{x1} ,x2:{x2},y1:{y1},y2:{y2}')
+    # cv2.putText(image,class_name,(x1+5,y1+50),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0),2)
+
+    return x1, y1, x2, y2
+
+
+def update_yolo_after_cropped(crop_labels,normalized_cancer_label,orginalimage,crop_image):
+    '''2D crop_labels, 1Dc cancer_label, imageMatrix
+    return classID,new_x_center, new_y_center, new_width, new_height'''
+    
+
+
+    crop_cords = crop_labels
+    # original_image= image
+    crop_x1,crop_y1,crop_x2,crop_y2 = unnormalize_Yolo_cords(label=crop_cords[0], image= orginalimage)
+    # cancer_labels = read_txt(txt_konumu=label_path)
+    Unnormalized_cords_x1,Unnormalized_cords_y1,Unnormalized_cords_x2,Unnormalized_cords_y2 = unnormalize_Yolo_cords(label=normalized_cancer_label,image=orginalimage)
+    crop_details = {
+        'left':crop_x1,# x1
+        'top':crop_y1,# y1
+        'right':crop_x2,# x2
+        'bottom':crop_y2,# y2
+        }
+
+    new_x1 = Unnormalized_cords_x1 - crop_details['left']
+    new_y1 = Unnormalized_cords_y1 - crop_details['top']
+    new_x2 = Unnormalized_cords_x2 - crop_details['left']
+    new_y2 = Unnormalized_cords_y2 - crop_details['top']
+    classID = normalized_cancer_label[0]
+    new_x_center, new_y_center, new_width, new_height = convert_to_yolo (x1 = new_x1 ,y1=new_y1,x2=new_x2 ,y2= new_y2,image=crop_image)
+    # x_center, y_center, width, height = convert_to_yolo(x1,y1,x2,y2,crop_image)
+    return classID,new_x_center, new_y_center, new_width, new_height
+
+
+
+
+
+def Predict_frame(frame,model):
+    'labels[[x, y, w,h]]'
+    predictions = model(frame, save_txt=None)
+    labels = []
+    for idx, prediction in enumerate(predictions[0].boxes.xywhn):  # Change final attribute to desired box format
+        cls = int(predictions[0].boxes.cls[idx].item())
+        # Write line to file in YOLO label format : cls x y w h
+        line = f"{cls} {prediction[0].item()} {prediction[1].item()} {prediction[2].item()} {prediction[3].item()}"
+        numbers = list(map(float, line.split()))
+        labels.append(numbers)
+    return labels
+
+def read_txt (txt_konumu):
+    labels = []
+    with open(txt_konumu, 'r') as file:
+        # Read the entire file
+        for line in file:
+            numbers  = list(map(float, line.split()))
+            labels.append(numbers)
+    return labels
+
+
+
+
+
+
+print('runned')
+
+
+
+import cv2
+import matplotlib.pyplot as plt
+import pandas as pd
+import os
+inputstring = "-902.946,399.9102;-902.946,83.00023;-1175.955,83.00023;-1175.955,399.9102"
+# Her koordinat çifti noktalı virgül ile ayrılmıştır
+
+def conf_the_str(input_coords):
+    pairs = input_coords.split(';')
+    # Koordinat çiftlerini ayrıştırıp, listeye ekleyelim
+    coordinates = []
+    for pair in pairs:
+        x, y = map(float, pair.split(','))
+        coordinates.append([x, y])
+    return coordinates
+
+
+def label_conf_and_draw(labels,image):
+    '''Output order: x1,y1,x2,y2'''
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # Get image dimensions
+    height, width, _ = image.shape
+
+    # Given coordinates of the label corners
+    label_coords = labels 
+
+    # Calculate actual positions without loop
+                    #x              + half_width        y+ half_height
+    x1, y1 = int(label_coords[0][0] + width / 2), int(label_coords[0][1] + height / 2)
+    x2, y2 = int(label_coords[2][0] + width / 2), int(label_coords[2][1] + height / 2)
+
+    return x1,y1,x2,y2
+
+def convert_to_yolo(x1, y1, x2, y2, image):
+    'return x_center, y_center, width, height'
+    # Calculate the center of the bounding box
+    img_height, img_width, _ = image.shape
+    x_center = (x1 + x2) / 2.0
+    y_center = (y1 + y2) / 2.0
+         
+    # Calculate the width and height of the bounding box
+    width = x2 - x1
+    height = y2 - y1
+    
+    # Normalize the values by the image width and height
+    x_center /= img_width
+    y_center /= img_height
+    width /= img_width
+    height /= img_height
+    
+    return x_center, y_center, width, height
+
+
+
+def unnormalize_Yolo_cords(label,image):
+    'return: x1, y1, x2, y2'
+    img_height, img_width, rgb = image.shape
+
+    cls,x_zip, y_zip, genislik_bbox_zip, yukseklik_bbox_zip = label
+
+    img_height, img_width, rgb = image.shape #shape fonksyonu Goruntunun gensligi, yuksekligi ve kanal sayisini alir
+    x = x_zip * img_width
+    y = y_zip * img_height
+    bbox_genislik= genislik_bbox_zip * img_width
+    bbox_yukseklik = yukseklik_bbox_zip * img_height
+
+    x1 = int(x - bbox_genislik/2)
+    x2 = int(x + bbox_genislik/2)
+    y1 = int(y - bbox_yukseklik/2)
+    y2 = int(y + bbox_yukseklik/2)
+    # print(f'x1:{x1} ,x2:{x2},y1:{y1},y2:{y2}')
+    # cv2.putText(image,class_name,(x1+5,y1+50),cv2.FONT_HERSHEY_SIMPLEX,0.5,(0,255,0),2)
+
+    return x1, y1, x2, y2
+
+
+def update_yolo_after_cropped(crop_labels,normalized_cancer_label,orginalimage,crop_image):
+    '''2D crop_labels, 1Dc cancer_label, imageMatrix
+    return classID,new_x_center, new_y_center, new_width, new_height'''
+    
+
+
+    crop_cords = crop_labels
+    # original_image= image
+    crop_x1,crop_y1,crop_x2,crop_y2 = unnormalize_Yolo_cords(label=crop_cords[0], image= orginalimage)
+    # cancer_labels = read_txt(txt_konumu=label_path)
+    Unnormalized_cords_x1,Unnormalized_cords_y1,Unnormalized_cords_x2,Unnormalized_cords_y2 = unnormalize_Yolo_cords(label=normalized_cancer_label,image=orginalimage)
+    crop_details = {
+        'left':crop_x1,# x1
+        'top':crop_y1,# y1
+        'right':crop_x2,# x2
+        'bottom':crop_y2,# y2
+        }
+
+    new_x1 = Unnormalized_cords_x1 - crop_details['left']
+    new_y1 = Unnormalized_cords_y1 - crop_details['top']
+    new_x2 = Unnormalized_cords_x2 - crop_details['left']
+    new_y2 = Unnormalized_cords_y2 - crop_details['top']
+    classID = normalized_cancer_label[0]
+    new_x_center, new_y_center, new_width, new_height = convert_to_yolo (x1 = new_x1 ,y1=new_y1,x2=new_x2 ,y2= new_y2,image=crop_image)
+    # x_center, y_center, width, height = convert_to_yolo(x1,y1,x2,y2,crop_image)
+    return classID,new_x_center, new_y_center, new_width, new_height
+
+
+
+
+
+def Predict_frame(frame,model):
+    'labels[[x, y, w,h]]'
+    predictions = model(frame, save_txt=None)
+    labels = []
+    for idx, prediction in enumerate(predictions[0].boxes.xywhn):  # Change final attribute to desired box format
+        cls = int(predictions[0].boxes.cls[idx].item())
+        # Write line to file in YOLO label format : cls x y w h
+        line = f"{cls} {prediction[0].item()} {prediction[1].item()} {prediction[2].item()} {prediction[3].item()}"
+        numbers = list(map(float, line.split()))
+        labels.append(numbers)
+    return labels
+
+def read_txt (txt_konumu):
+    labels = []
+    with open(txt_konumu, 'r') as file:
+        # Read the entire file
+        for line in file:
+            numbers  = list(map(float, line.split()))
+            labels.append(numbers)
+    return labels
+
+
+
+
+
+
+print('runned')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
